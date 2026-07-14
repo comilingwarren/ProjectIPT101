@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>REACT</title>
+<style>
+  :root{
+    --wait: #2b2d31;
+    --go: #2ee6a6;
+    --early: #ff3b3b;
+    --bg: #111214;
+    --text: #f2f2f0;
+    --dim: #8a8d93;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh;
+    overflow:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+  .frame{
+    width: 100%;
+    max-width: 420px;
+    height: 100vh;
+    max-height: 640px;
+    display:flex; flex-direction:column;
+  }
+  .topbar{
+    display:flex; justify-content:space-between; align-items:center;
+    padding: 18px 22px 10px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    font-weight: 700;
+  }
+  .topbar b{ color: var(--text); }
+
+  .panel{
+    flex: 1;
+    margin: 0 16px 16px;
+    border-radius: 20px;
+    background: var(--wait);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    cursor: pointer;
+    transition: background 0.08s;
+    padding: 24px;
+  }
+  .panel.go{ background: var(--go); color: #06231a; }
+  .panel.early{ background: var(--early); color: #2a0000; }
+  .panel.done{ background: var(--wait); cursor: default; }
+
+  .big{
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  .small{
+    font-size: 14px;
+    opacity: 0.75;
+    font-weight: 500;
+    max-width: 260px;
+    line-height: 1.5;
+  }
+  .ms{
+    font-size: 52px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .footer{
+    padding: 16px 22px 22px;
+    display:flex; justify-content:center;
+  }
+  .btn{
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    padding: 12px 28px;
+    border-radius: 26px;
+    border: none;
+    cursor: pointer;
+    background: var(--go);
+    color: #06231a;
+  }
+  .btn.stop{
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid #3a3c40;
+    margin-left: 10px;
+  }
+  .btn.stop:hover{ color: var(--early); border-color: var(--early); }
+  .btn[disabled]{ opacity: 0.3; cursor: default; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="topbar">
+    <div>ROUND <b id="roundNum">0</b>/5</div>
+    <div>AVG <b id="avgVal">--</b> ms</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="big" id="bigText">TAP START</div>
+    <div class="small" id="smallText">You'll get 5 rounds. Wait for green, then tap as fast as you can.</div>
+  </div>
+
+  <div class="footer">
+    <button class="btn" id="startBtn">START</button>
+    <button class="btn stop" id="stopBtn" disabled>STOP</button>
+  </div>
+</div>
+
+<script>
+const panel = document.getElementById('panel');
+const bigText = document.getElementById('bigText');
+const smallText = document.getElementById('smallText');
+const roundNum = document.getElementById('roundNum');
+const avgVal = document.getElementById('avgVal');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+
+const TOTAL_ROUNDS = 5;
+let round = 0;
+let times = [];
+let state = 'idle'; // idle | waiting | ready | early | done
+let timeoutId = null;
+let goTime = 0;
+
+function setPanel(cls, big, small){
+  panel.className = 'panel' + (cls ? ' ' + cls : '');
+  bigText.textContent = big;
+  smallText.textContent = small;
+}
+
+function startRound(){
+  state = 'waiting';
+  round++;
+  roundNum.textContent = round;
+  setPanel('', 'WAIT...', 'Don\'t tap yet.');
+  const delay = 1000 + Math.random() * 2500;
+  timeoutId = setTimeout(()=>{
+    state = 'ready';
+    goTime = performance.now();
+    setPanel('go', 'TAP NOW', '');
+  }, delay);
+}
+
+function startGame(){
+  round = 0;
+  times = [];
+  avgVal.textContent = '--';
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  startRound();
+}
+
+function endGame(stopped){
+  clearTimeout(timeoutId);
+  state = 'idle';
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  if(stopped){
+    setPanel('', 'STOPPED', 'Press start whenever you\'re ready to try again.');
+  }
+}
+
+function finishSession(){
+  state = 'done';
+  clearTimeout(timeoutId);
+  const avg = Math.round(times.reduce((a,b)=>a+b,0) / times.length);
+  avgVal.textContent = avg;
+  let verdict;
+  if(avg < 220) verdict = 'lightning reflexes.';
+  else if(avg < 300) verdict = 'sharp — nicely done.';
+  else if(avg < 400) verdict = 'solid, room to sharpen.';
+  else verdict = 'take your time next round.';
+  setPanel('done', `${avg} ms avg`, verdict);
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+}
+
+panel.addEventListener('click', ()=>{
+  if(state === 'idle' || state === 'done'){
+    return; // use buttons to start
+  }
+  if(state === 'waiting'){
+    // tapped too early
+    clearTimeout(timeoutId);
+    state = 'early';
+    setPanel('early', 'TOO SOON', 'Tap start to try that round again.');
+    setTimeout(()=>{
+      if(round <= TOTAL_ROUNDS){
+        startRound();
+      }
+    }, 900);
+  } else if(state === 'ready'){
+    const rt = Math.round(performance.now() - goTime);
+    times.push(rt);
+    setPanel('', `${rt} ms`, round < TOTAL_ROUNDS ? 'Nice. Next round coming up.' : '');
+    if(round >= TOTAL_ROUNDS){
+      setTimeout(finishSession, 700);
+    } else {
+      setTimeout(startRound, 700);
+    }
+  }
+});
+
+startBtn.addEventListener('click', startGame);
+stopBtn.addEventListener('click', ()=> endGame(true));
+</script>
+</body>
+</html>
